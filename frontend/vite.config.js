@@ -7,7 +7,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'https://gamegrid-t3ih.onrender.com',
+        target: 'https://gamegrid-00vg.onrender.com',
         changeOrigin: true,
       }
     }
