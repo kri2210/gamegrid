@@ -9,9 +9,7 @@ const PORT = process.env.PORT || 5000;
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
 app.use(cors({
-  origin:'http://localhost:5173',
-  credentials: true
-}));
+  }));
 app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
@@ -21,12 +19,12 @@ mongoose.connect(process.env.MONGO_URI)
   .catch(err => { console.error('❌ MongoDB connection error:', err.message); process.exit(1); });
 
 // ─── Routes ──────────────────────────────────────────────────────────────────
-app.use('/api/auth',     require('./routes/auth'));
-app.use('/api/venues',   require('./routes/venues'));
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/venues', require('./routes/venues'));
 app.use('/api/bookings', require('./routes/bookings'));
 app.use('/api/payments', require('./routes/payments'));
-app.use('/api/events',   require('./routes/events'));
-app.use('/api/owner',    require('./routes/owner'));
+app.use('/api/events', require('./routes/events'));
+app.use('/api/owner', require('./routes/owner'));
 
 // ─── Health check ─────────────────────────────────────────────────────────────
 app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date() }));
