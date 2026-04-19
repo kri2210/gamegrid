@@ -26,7 +26,7 @@ A full-stack web application built using the MERN stack (MongoDB, Express.js, Re
 
 ### 1. Clone the repository
 ```bash
-git clone https://github.com/your-username/your-repo-name.git
+git clone https://github.com/kri2210/gamegrid.git
 cd your-repo-name
 ```
 
@@ -47,6 +47,7 @@ Run the backend server:
 ```bash
 npm start
 # or npm run dev
+# or node server.js
 ```
 
 ### 3. Setup Frontend
