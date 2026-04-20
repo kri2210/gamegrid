@@ -73,4 +73,4 @@ This application is configured to be easily deployed using Git.
 * Ensure to set the required Environment Variables in your hosting provider's dashboard.
 
 ## Website link
-gamegrid-three.vercel.app
+https://gamegrid-three.vercel.app/
