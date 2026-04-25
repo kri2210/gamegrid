@@ -37,7 +37,8 @@ export default function VenueDetail() {
   const [booking,      setBooking]      = useState(false);
   const [dayOffInfo,   setDayOffInfo]   = useState(null);
 
-  const today = new Date().toISOString().split('T')[0];
+  const today   = new Date().toISOString().split('T')[0];
+  const maxDate  = (() => { const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().split('T')[0]; })();
   const [selectedSport,  setSelectedSport]  = useState('');
   const [selectedDate,   setSelectedDate]   = useState(today);
   const [selectedSlots,  setSelectedSlots]  = useState([]);
@@ -283,8 +284,9 @@ export default function VenueDetail() {
             {/* Date */}
             <div className="form-group mb-4">
               <label className="form-label">Date</label>
-              <input type="date" className="form-input" value={selectedDate} min={today}
+              <input type="date" className="form-input" value={selectedDate} min={today} max={maxDate}
                 onChange={e => setSelectedDate(e.target.value)} />
+              <div style={{ fontSize:'0.7rem', color:'var(--text-3)', marginTop:4 }}>Slots available up to 7 days ahead</div>
             </div>
 
             {/* Slots */}

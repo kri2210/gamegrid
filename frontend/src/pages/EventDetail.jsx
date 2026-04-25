@@ -5,10 +5,9 @@ import toast from 'react-hot-toast';
 import Loader, { InlineLoader } from '../components/Loader';
 
 const PAYMENT_OPTIONS = [
-  { value:'online', icon:'💳', label:'Online' },
-  { value:'card',   icon:'🏦', label:'Card' },
-  { value:'upi',    icon:'📲', label:'UPI' },
-  { value:'cash',   icon:'💵', label:'Cash' },
+  { value:'online', icon:'💳', label:'Online',          desc:'Cards, Netbanking, Wallets via Razorpay' },
+  { value:'upi',    icon:'📲', label:'UPI',             desc:'Pay instantly via UPI via Razorpay' },
+  { value:'cash',   icon:'💵', label:'Cash at Counter', desc:'Pay at the venue on the event day' },
 ];
 
 // Load Razorpay script dynamically
@@ -112,7 +111,7 @@ export default function EventDetail() {
 
     setSubmitting(true);
     try {
-      const isOnline = form.paymentMethod !== 'cash';
+      const isOnline = form.paymentMethod === 'online' || form.paymentMethod === 'upi';
       const hasFee   = event.entryFee > 0;
 
       if (isOnline && hasFee) {
@@ -145,7 +144,7 @@ export default function EventDetail() {
 
   const spotsLeft   = event.maxTeams - (event.registeredTeamsCount || 0);
   const canRegister = ['Open','Active'].includes(event.status) && spotsLeft > 0;
-  const isOnlinePay = form.paymentMethod !== 'cash';
+  const isOnlinePay = form.paymentMethod === 'online' || form.paymentMethod === 'upi';
   const hasFee      = event.entryFee > 0;
 
   return (
@@ -286,29 +285,47 @@ export default function EventDetail() {
                   </div>
 
                   <label className="form-label">Payment Method</label>
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                  <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
                     {PAYMENT_OPTIONS.map(opt => (
                       <div key={opt.value}
-                        style={{ padding:'10px 8px', borderRadius:10, border:`1.5px solid ${form.paymentMethod===opt.value?'var(--neon-green)':'var(--border)'}`, background:form.paymentMethod===opt.value?'rgba(0,255,136,0.08)':'transparent', cursor:'pointer', textAlign:'center', fontSize:'0.8rem', fontWeight:600 }}
+                        style={{ padding:'12px 14px', borderRadius:10, border:`1.5px solid ${form.paymentMethod===opt.value?'var(--neon-green)':'var(--border)'}`, background:form.paymentMethod===opt.value?'rgba(0,255,136,0.08)':'transparent', cursor:'pointer', display:'flex', alignItems:'center', gap:10 }}
                         onClick={() => setForm(f => ({ ...f, paymentMethod: opt.value }))}>
-                        {opt.icon} {opt.label}
+                        <span style={{ fontSize:'1.2rem' }}>{opt.icon}</span>
+                        <div>
+                          <div style={{ fontSize:'0.85rem', fontWeight:700 }}>{opt.label}</div>
+                          <div style={{ fontSize:'0.7rem', color:'var(--text-3)' }}>{opt.desc}</div>
+                        </div>
                       </div>
                     ))}
                   </div>
 
-                  {/* Entry fee + payment hint */}
-                  {hasFee && (
-                    <div style={{ background:'rgba(124,58,237,0.08)', border:'1px solid rgba(124,58,237,0.25)', borderRadius:10, padding:'12px 14px' }}>
-                      <div style={{ display:'flex', justifyContent:'space-between', marginBottom: isOnlinePay ? 6 : 0 }}>
-                        <span className="text-muted">Entry Fee</span>
-                        <span className="fw-700" style={{ color:'var(--neon-green)' }}>₹{event.entryFee}</span>
-                      </div>
-                      {isOnlinePay && (
-                        <div style={{ fontSize:'0.75rem', color:'var(--text-3)', display:'flex', alignItems:'center', gap:6 }}>
-                          <span>🔒</span>
-                          <span>Secured via Razorpay — you'll be redirected to complete payment</span>
+                  {/* Entry fee + Razorpay info panel */}
+                  {hasFee && isOnlinePay && (
+                    <div style={{ background:'rgba(0,255,136,0.06)', border:'1px solid rgba(0,255,136,0.2)', borderRadius:12, padding:'14px 16px', display:'flex', gap:12, alignItems:'flex-start' }}>
+                      <div style={{ fontSize:'1.4rem', flexShrink:0 }}>🔒</div>
+                      <div>
+                        <div style={{ fontWeight:700, marginBottom:4, color:'var(--neon-green)' }}>Secure Payment via Razorpay</div>
+                        <div style={{ fontSize:'0.8rem', color:'var(--text-2)' }}>
+                          You'll be prompted to pay <strong style={{ color:'var(--text-1)' }}>₹{event.entryFee}</strong> via Razorpay — supports cards, UPI, netbanking &amp; wallets. Booking confirms instantly after payment.
                         </div>
-                      )}
+                      </div>
+                    </div>
+                  )}
+                  {hasFee && !isOnlinePay && (
+                    <div style={{ background:'rgba(255,122,0,0.06)', border:'1px solid rgba(255,122,0,0.2)', borderRadius:12, padding:'14px 16px', display:'flex', gap:12, alignItems:'flex-start' }}>
+                      <div style={{ fontSize:'1.4rem', flexShrink:0 }}>💵</div>
+                      <div>
+                        <div style={{ fontWeight:700, marginBottom:4, color:'var(--neon-orange)' }}>Pay at Counter</div>
+                        <div style={{ fontSize:'0.8rem', color:'var(--text-2)' }}>
+                          Bring <strong style={{ color:'var(--text-1)' }}>₹{event.entryFee}</strong> in cash on the event day. Your spot is reserved pending payment confirmation.
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {!hasFee && (
+                    <div style={{ background:'rgba(0,255,136,0.06)', border:'1px solid rgba(0,255,136,0.2)', borderRadius:12, padding:'14px 16px', display:'flex', gap:12, alignItems:'center' }}>
+                      <div style={{ fontSize:'1.4rem' }}>🎉</div>
+                      <div style={{ fontWeight:700, color:'var(--neon-green)' }}>Free Entry — No payment required!</div>
                     </div>
                   )}
 

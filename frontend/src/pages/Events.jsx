@@ -4,6 +4,7 @@ import EventCard from '../components/EventCard';
 import Loader from '../components/Loader';
 
 const STATUS_FILTERS = ['All','Open','Active','Full','Closed'];
+// Cancelled events are never visible to players
 
 export default function Events() {
   const [events,  setEvents]  = useState([]);
@@ -19,6 +20,7 @@ export default function Events() {
   }, []);
 
   const filtered = events.filter(e => {
+    if (e.status === 'Cancelled') return false; // never show cancelled events to players
     const matchSearch = e.name.toLowerCase().includes(search.toLowerCase()) || (e.venueName||'').toLowerCase().includes(search.toLowerCase());
     const matchStatus = status === 'All' || e.status === status;
     return matchSearch && matchStatus;
