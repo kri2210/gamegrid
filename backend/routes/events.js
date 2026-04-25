@@ -1,8 +1,15 @@
-const router = require('express').Router();
+const router   = require('express').Router();
+const Razorpay  = require('razorpay');
+const crypto    = require('crypto');
 const Event = require('../models/Event');
 const Team  = require('../models/Team');
 const Venue = require('../models/Venue');
 const { authMiddleware, ownerMiddleware } = require('../middleware/auth');
+
+const razorpay = new Razorpay({
+  key_id:     process.env.RAZORPAY_KEY_ID,
+  key_secret: process.env.RAZORPAY_KEY_SECRET,
+});
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -93,8 +100,8 @@ router.post('/:id/register', authMiddleware, async (req, res) => {
     if (existing)
       return res.status(409).json({ error: 'You have already registered a team for this event' });
 
-    // Unique team name check
-    const dupName = await Team.findOne({ eventId: event._id, teamName: teamName.trim() });
+    // Case-insensitive unique team name check
+    const dupName = await Team.findOne({ eventId: event._id, teamNameLower: teamName.trim().toLowerCase() });
     if (dupName)
       return res.status(409).json({ error: 'Team name already exists. Please choose a different name.' });
 
@@ -108,7 +115,9 @@ router.post('/:id/register', authMiddleware, async (req, res) => {
       numberOfPlayers: parseInt(numberOfPlayers),
       members: Array.isArray(members) ? members : (members ? [members] : []),
       paymentMethod: paymentMethod || 'online',
-      paymentStatus: isOnline ? 'Paid' : 'Pending'
+      paymentStatus: isOnline ? 'Paid' : 'Pending',
+      razorpayOrderId:   req.body.razorpayOrderId   || '',
+      razorpayPaymentId: req.body.razorpayPaymentId || '',
     });
 
     if (isOnline) {
@@ -279,8 +288,9 @@ router.post('/owner/:id/register-offline', ownerMiddleware, async (req, res) => 
     const { teamName, numberOfPlayers, members, playerName, playerPhone } = req.body;
     if (!teamName || !numberOfPlayers) return res.status(400).json({ error: 'Team name and number of players are required' });
 
-    const dupName = await Team.findOne({ eventId: event._id, teamName: teamName.trim() });
-    if (dupName) return res.status(409).json({ error: 'Team name already exists' });
+    // Case-insensitive unique team name check
+    const dupName = await Team.findOne({ eventId: event._id, teamNameLower: teamName.trim().toLowerCase() });
+    if (dupName) return res.status(409).json({ error: 'Team name already exists. Please choose a different name.' });
 
     const team = await Team.create({
       eventId: event._id, teamName: teamName.trim(),
@@ -297,6 +307,106 @@ router.post('/owner/:id/register-offline', ownerMiddleware, async (req, res) => 
     res.status(201).json({ success: true, team });
   } catch (err) {
     if (err.code === 11000) return res.status(409).json({ error: 'Team name already exists' });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Razorpay Event Payment ─────────────────────────────────────────────────────
+
+// POST /api/events/:id/event-order — create a Razorpay order for event entry fee
+router.post('/:id/event-order', authMiddleware, async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.id);
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+    if (!event.entryFee || event.entryFee <= 0)
+      return res.status(400).json({ error: 'This event has no entry fee' });
+
+    const { teamName } = req.body;
+    if (!teamName) return res.status(400).json({ error: 'Team name is required' });
+
+    const order = await razorpay.orders.create({
+      amount:   Math.round(event.entryFee * 100), // paise
+      currency: 'INR',
+      receipt:  `event_${event._id}_${Date.now()}`,
+      notes: {
+        eventId:  String(event._id),
+        eventName: event.name,
+        teamName,
+        userId:   String(req.user._id),
+      },
+    });
+
+    res.json({
+      orderId:      order.id,
+      amount:       event.entryFee,
+      currency:     'INR',
+      keyId:        process.env.RAZORPAY_KEY_ID,
+      prefillName:  req.user.name,
+      prefillEmail: req.user.email || '',
+      prefillPhone: req.user.phone || '',
+    });
+  } catch (err) {
+    console.error('event-order error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/events/:id/event-verify — verify Razorpay signature then register team
+router.post('/:id/event-verify', authMiddleware, async (req, res) => {
+  try {
+    const {
+      razorpay_order_id, razorpay_payment_id, razorpay_signature,
+      teamName, numberOfPlayers, members, paymentMethod,
+    } = req.body;
+
+    // Signature check
+    const body = razorpay_order_id + '|' + razorpay_payment_id;
+    const expected = crypto
+      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+      .update(body)
+      .digest('hex');
+    if (expected !== razorpay_signature)
+      return res.status(400).json({ error: 'Payment verification failed — invalid signature' });
+
+    const event = await Event.findById(req.params.id);
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+    if (['Closed', 'Cancelled'].includes(event.status))
+      return res.status(400).json({ error: 'Event registration is closed' });
+    if (event.registeredTeamsCount >= event.maxTeams)
+      return res.status(400).json({ error: 'Event is full' });
+
+    // One team per user
+    const existing = await Team.findOne({ eventId: event._id, createdBy: req.user._id, paymentStatus: 'Paid' });
+    if (existing)
+      return res.status(409).json({ error: 'You have already registered a team for this event' });
+
+    // Case-insensitive name check
+    const dupName = await Team.findOne({ eventId: event._id, teamNameLower: teamName.trim().toLowerCase() });
+    if (dupName)
+      return res.status(409).json({ error: 'Team name already exists. Please choose a different name.' });
+
+    const team = await Team.create({
+      eventId: event._id,
+      teamName: teamName.trim(),
+      createdBy: req.user._id,
+      playerName: req.user.name,
+      playerPhone: req.user.phone || '',
+      numberOfPlayers: parseInt(numberOfPlayers),
+      members: Array.isArray(members) ? members : (members ? [members] : []),
+      paymentMethod: paymentMethod || 'online',
+      paymentStatus: 'Paid',
+      razorpayOrderId:   razorpay_order_id,
+      razorpayPaymentId: razorpay_payment_id,
+    });
+
+    event.registeredTeamsCount += 1;
+    if (event.registeredTeamsCount >= event.maxTeams) event.status = 'Full';
+    await event.save();
+
+    res.status(201).json({ success: true, team });
+  } catch (err) {
+    if (err.code === 11000) return res.status(409).json({ error: 'Team name already exists. Please choose a different name.' });
+    console.error('event-verify error:', err);
     res.status(500).json({ error: err.message });
   }
 });
